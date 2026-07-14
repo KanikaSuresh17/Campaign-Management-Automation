@@ -1,0 +1,823 @@
+openapi: 3.0.3
+info:
+  title: Campaign Management API
+  version: 1.0.0
+  description: API contract for the SDET internship campaign automation exercise. The service lets test suites reset seeded data, create campaigns, estimate audiences, launch campaigns, and compare UI behavior with backend state.
+servers:
+  - url: http://localhost:3000
+    description: Local development server.
+  - url: https://example-campaign-management.vercel.app
+    description: Replace with the deployed Vercel URL.
+tags:
+  - name: Health
+    description: Operational endpoints used to confirm the app is reachable.
+  - name: Campaigns
+    description: Campaign creation, lookup, filtering, and launch workflows.
+  - name: Audiences
+    description: Audience estimate workflows used before launching a campaign.
+  - name: Test Controls
+    description: Reset and scenario-control endpoints intended for automation setup.
+paths:
+  /api/health:
+    get:
+      tags:
+        - Health
+      operationId: getHealth
+      summary: Check API health.
+      description: Returns a small status payload so a new test suite can verify that the local or hosted API is running before executing browser scenarios.
+      responses:
+        '200':
+          $ref: '#/components/responses/HealthOk'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '500':
+          $ref: '#/components/responses/InternalError'
+  /api/campaigns:
+    get:
+      tags:
+        - Campaigns
+      operationId: listCampaigns
+      summary: List campaigns.
+      description: Returns campaigns using optional status and channel filters. Automation suites should use this endpoint to set up assertions about what the UI should display.
+      parameters:
+        - $ref: '#/components/parameters/StatusQuery'
+        - $ref: '#/components/parameters/ChannelQuery'
+        - $ref: '#/components/parameters/SearchQuery'
+        - $ref: '#/components/parameters/LimitQuery'
+        - $ref: '#/components/parameters/OffsetQuery'
+        - $ref: '#/components/parameters/ForceUnauthorizedQuery'
+      responses:
+        '200':
+          $ref: '#/components/responses/CampaignListOk'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '500':
+          $ref: '#/components/responses/InternalError'
+    post:
+      tags:
+        - Campaigns
+      operationId: createCampaign
+      summary: Create a campaign.
+      description: Creates a draft or scheduled campaign from form input. This is the main endpoint behind the browser create-campaign workflow.
+      parameters:
+        - $ref: '#/components/parameters/ForceUnauthorizedQuery'
+      requestBody:
+        $ref: '#/components/requestBodies/CreateCampaignRequestBody'
+      responses:
+        '201':
+          $ref: '#/components/responses/CampaignCreated'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '500':
+          $ref: '#/components/responses/InternalError'
+  /api/campaigns/{campaignId}:
+    get:
+      tags:
+        - Campaigns
+      operationId: getCampaign
+      summary: Get one campaign.
+      description: Returns a single campaign by ID so tests can verify details after creation, filtering, or launch.
+      parameters:
+        - $ref: '#/components/parameters/CampaignIdPath'
+        - $ref: '#/components/parameters/ForceUnauthorizedQuery'
+      responses:
+        '200':
+          $ref: '#/components/responses/CampaignOk'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '404':
+          $ref: '#/components/responses/NotFound'
+        '500':
+          $ref: '#/components/responses/InternalError'
+  /api/campaigns/{campaignId}/launch:
+    post:
+      tags:
+        - Campaigns
+      operationId: launchCampaign
+      summary: Launch a campaign.
+      description: Moves a draft or scheduled campaign into the queued delivery state. Tests should compare this API response with the status shown in the UI.
+      parameters:
+        - $ref: '#/components/parameters/CampaignIdPath'
+        - $ref: '#/components/parameters/ForceUnauthorizedQuery'
+      responses:
+        '200':
+          $ref: '#/components/responses/CampaignOk'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '404':
+          $ref: '#/components/responses/NotFound'
+        '500':
+          $ref: '#/components/responses/InternalError'
+  /api/audiences/estimate:
+    post:
+      tags:
+        - Audiences
+      operationId: estimateAudience
+      summary: Estimate campaign audience.
+      description: Calculates the recipient count for a selected audience segment and channel before the user creates or launches a campaign.
+      parameters:
+        - $ref: '#/components/parameters/ForceUnauthorizedQuery'
+      requestBody:
+        $ref: '#/components/requestBodies/AudienceEstimateRequestBody'
+      responses:
+        '200':
+          $ref: '#/components/responses/AudienceEstimateOk'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '500':
+          $ref: '#/components/responses/InternalError'
+  /api/test-controls/reset:
+    post:
+      tags:
+        - Test Controls
+      operationId: resetTestData
+      summary: Reset test data.
+      description: Restores seeded campaign data and optionally toggles controlled failure modes. This endpoint exists to make automation repeatable.
+      parameters:
+        - $ref: '#/components/parameters/ForceUnauthorizedQuery'
+      requestBody:
+        $ref: '#/components/requestBodies/ResetControlsRequestBody'
+      responses:
+        '200':
+          $ref: '#/components/responses/ResetOk'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '500':
+          $ref: '#/components/responses/InternalError'
+components:
+  parameters:
+    CampaignIdPath:
+      name: campaignId
+      in: path
+      required: true
+      description: Unique campaign identifier assigned by the campaign service.
+      example: cmp-1001
+      schema:
+        $ref: '#/components/schemas/CampaignId'
+    StatusQuery:
+      name: status
+      in: query
+      required: false
+      description: Optional campaign status filter used by the campaign list UI.
+      example: Draft
+      schema:
+        $ref: '#/components/schemas/CampaignStatus'
+    ChannelQuery:
+      name: channel
+      in: query
+      required: false
+      description: Optional channel filter used by the campaign list UI.
+      example: SMS
+      schema:
+        $ref: '#/components/schemas/CampaignChannel'
+    SearchQuery:
+      name: search
+      in: query
+      required: false
+      description: Case-insensitive campaign name search text.
+      example: winback
+      schema:
+        $ref: '#/components/schemas/SearchText'
+    LimitQuery:
+      name: limit
+      in: query
+      required: false
+      description: Maximum number of campaigns to return.
+      example: 20
+      schema:
+        $ref: '#/components/schemas/Limit'
+    OffsetQuery:
+      name: offset
+      in: query
+      required: false
+      description: Number of matching campaigns to skip before returning results.
+      example: 0
+      schema:
+        $ref: '#/components/schemas/Offset'
+    ForceUnauthorizedQuery:
+      name: forceUnauthorized
+      in: query
+      required: false
+      description: Optional test hook that forces a 401 response when set to true.
+      example: false
+      schema:
+        $ref: '#/components/schemas/BooleanFlag'
+  requestBodies:
+    CreateCampaignRequestBody:
+      description: Campaign fields submitted from the create campaign form.
+      required: true
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/CreateCampaignRequest'
+    AudienceEstimateRequestBody:
+      description: Audience and channel selection used to calculate recipient count.
+      required: true
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/AudienceEstimateRequest'
+    ResetControlsRequestBody:
+      description: Optional toggles for resetting seeded data and failure modes.
+      required: false
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/ResetControlsRequest'
+  responses:
+    HealthOk:
+      description: API health check succeeded.
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/HealthResponse'
+    CampaignListOk:
+      description: Campaign list returned successfully.
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/CampaignListResponse'
+    CampaignOk:
+      description: Campaign returned successfully.
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/Campaign'
+    CampaignCreated:
+      description: Campaign created successfully.
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/Campaign'
+    AudienceEstimateOk:
+      description: Audience estimate returned successfully.
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/AudienceEstimateResponse'
+    ResetOk:
+      description: Seeded test data reset successfully.
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/ResetResponse'
+    BadRequest:
+      description: Request failed validation.
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/ErrorResponse'
+    Unauthorized:
+      description: Authentication failed or was intentionally forced by a test hook.
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/ErrorResponse'
+    NotFound:
+      description: Requested resource does not exist.
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/ErrorResponse'
+    InternalError:
+      description: Unexpected server failure or controlled provider failure.
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/ErrorResponse'
+  schemas:
+    CampaignId:
+      type: string
+      description: Stable campaign identifier used in URLs and API responses.
+      minLength: 8
+      maxLength: 16
+      pattern: '^cmp-[0-9]{4}$'
+      example: cmp-1001
+    CampaignName:
+      type: string
+      description: Human-readable campaign name shown in the campaign list.
+      minLength: 3
+      maxLength: 80
+      pattern: '^[A-Za-z0-9][A-Za-z0-9 ._-]{1,78}[A-Za-z0-9.]$'
+      example: Renewal Nudge June
+    CampaignChannel:
+      type: string
+      description: Delivery channel selected by the marketing user.
+      enum:
+        - Email
+        - SMS
+        - Push
+      example: SMS
+    CampaignStatus:
+      type: string
+      description: Current lifecycle state of the campaign.
+      enum:
+        - Draft
+        - Scheduled
+        - Queued
+        - Sent
+        - Failed
+      example: Draft
+    AudienceSegmentId:
+      type: string
+      description: Identifier for a seeded audience segment.
+      enum:
+        - trial-users
+        - dormant-users
+        - premium-users
+        - all-users
+      example: dormant-users
+    SendMode:
+      type: string
+      description: Whether the campaign should be sent now or scheduled for later.
+      enum:
+        - now
+        - scheduled
+      example: scheduled
+    ScheduledAt:
+      type: string
+      description: Local date-time value from the schedule input. Immediate-send campaigns use an empty string; scheduled campaigns must use a future value.
+      minLength: 0
+      maxLength: 16
+      pattern: '^$|^[0-9]{4}-[0-9]{2}-[0-9]{2}T[0-9]{2}:[0-9]{2}$'
+      example: '2026-07-15T10:30'
+    CampaignMessage:
+      type: string
+      description: Message content sent to the selected audience.
+      minLength: 10
+      maxLength: 240
+      pattern: '^.{10,240}$'
+      example: Your trial ends soon. Upgrade today.
+    AudienceCount:
+      type: integer
+      description: Number of recipients expected for the selected audience.
+      minimum: 0
+      maximum: 1000000
+      example: 1240
+    DeliveryStats:
+      type: object
+      description: Delivery counters for a campaign after launch.
+      required:
+        - accepted
+        - delivered
+        - failed
+      example:
+        accepted: 1240
+        delivered: 0
+        failed: 0
+      properties:
+        accepted:
+          $ref: '#/components/schemas/AudienceCount'
+        delivered:
+          $ref: '#/components/schemas/AudienceCount'
+        failed:
+          $ref: '#/components/schemas/AudienceCount'
+    Campaign:
+      type: object
+      description: Campaign record displayed by the workspace and returned by the API.
+      required:
+        - id
+        - name
+        - channel
+        - audienceSegment
+        - status
+        - sendMode
+        - scheduledAt
+        - message
+        - estimatedAudience
+        - delivery
+        - createdAt
+      example:
+        id: cmp-1001
+        name: Dormant Buyer SMS Winback
+        channel: SMS
+        audienceSegment: dormant-users
+        status: Draft
+        sendMode: now
+        scheduledAt: ''
+        message: We saved a limited-time offer for you.
+        estimatedAudience: 1240
+        delivery:
+          accepted: 0
+          delivered: 0
+          failed: 0
+        createdAt: '2026-06-01T09:30:00Z'
+      properties:
+        id:
+          $ref: '#/components/schemas/CampaignId'
+        name:
+          $ref: '#/components/schemas/CampaignName'
+        channel:
+          $ref: '#/components/schemas/CampaignChannel'
+        audienceSegment:
+          $ref: '#/components/schemas/AudienceSegmentId'
+        status:
+          $ref: '#/components/schemas/CampaignStatus'
+        sendMode:
+          $ref: '#/components/schemas/SendMode'
+        scheduledAt:
+          $ref: '#/components/schemas/ScheduledAt'
+        message:
+          $ref: '#/components/schemas/CampaignMessage'
+        estimatedAudience:
+          $ref: '#/components/schemas/AudienceCount'
+        delivery:
+          $ref: '#/components/schemas/DeliveryStats'
+        createdAt:
+          type: string
+          description: ISO 8601 timestamp showing when the campaign was created.
+          format: date-time
+          example: '2026-06-01T09:30:00Z'
+    CampaignArray:
+      type: array
+      description: Ordered campaign records returned by list endpoints.
+      minItems: 0
+      maxItems: 100
+      example:
+        - id: cmp-1001
+          name: Dormant Buyer SMS Winback
+          channel: SMS
+          audienceSegment: dormant-users
+          status: Draft
+          sendMode: now
+          scheduledAt: ''
+          message: We saved a limited-time offer for you.
+          estimatedAudience: 1240
+          delivery:
+            accepted: 0
+            delivered: 0
+            failed: 0
+          createdAt: '2026-06-01T09:30:00Z'
+      items:
+        $ref: '#/components/schemas/Campaign'
+    CampaignSummary:
+      type: object
+      description: Counts used by the top summary metrics in the browser UI.
+      required:
+        - total
+        - draft
+        - scheduled
+        - queued
+        - sent
+        - failed
+      example:
+        total: 3
+        draft: 1
+        scheduled: 1
+        queued: 0
+        sent: 1
+        failed: 0
+      properties:
+        total:
+          $ref: '#/components/schemas/AudienceCount'
+        draft:
+          $ref: '#/components/schemas/AudienceCount'
+        scheduled:
+          $ref: '#/components/schemas/AudienceCount'
+        queued:
+          $ref: '#/components/schemas/AudienceCount'
+        sent:
+          $ref: '#/components/schemas/AudienceCount'
+        failed:
+          $ref: '#/components/schemas/AudienceCount'
+    PaginationMeta:
+      type: object
+      description: Pagination metadata for collection responses.
+      required:
+        - total
+        - limit
+        - offset
+      example:
+        total: 3
+        limit: 20
+        offset: 0
+      properties:
+        total:
+          type: integer
+          description: Total number of matching records.
+          minimum: 0
+          maximum: 1000000
+          example: 3
+        limit:
+          $ref: '#/components/schemas/Limit'
+        offset:
+          $ref: '#/components/schemas/Offset'
+    CampaignListResponse:
+      type: object
+      description: Paginated campaign list plus summary metrics.
+      required:
+        - data
+        - meta
+        - summary
+      example:
+        data:
+          - id: cmp-1001
+            name: Dormant Buyer SMS Winback
+            channel: SMS
+            audienceSegment: dormant-users
+            status: Draft
+            sendMode: now
+            scheduledAt: ''
+            message: We saved a limited-time offer for you.
+            estimatedAudience: 1240
+            delivery:
+              accepted: 0
+              delivered: 0
+              failed: 0
+            createdAt: '2026-06-01T09:30:00Z'
+        meta:
+          total: 3
+          limit: 20
+          offset: 0
+        summary:
+          total: 3
+          draft: 1
+          scheduled: 1
+          queued: 0
+          sent: 1
+          failed: 0
+      properties:
+        data:
+          $ref: '#/components/schemas/CampaignArray'
+        meta:
+          $ref: '#/components/schemas/PaginationMeta'
+        summary:
+          $ref: '#/components/schemas/CampaignSummary'
+    CreateCampaignRequest:
+      type: object
+      description: Input payload used to create a campaign from the browser form.
+      required:
+        - name
+        - channel
+        - audienceSegment
+        - sendMode
+        - message
+      example:
+        name: Renewal Nudge June
+        channel: Email
+        audienceSegment: trial-users
+        sendMode: scheduled
+        scheduledAt: '2026-07-15T10:30'
+        message: Your trial ends soon. Upgrade today.
+      properties:
+        name:
+          $ref: '#/components/schemas/CampaignName'
+        channel:
+          $ref: '#/components/schemas/CampaignChannel'
+        audienceSegment:
+          $ref: '#/components/schemas/AudienceSegmentId'
+        sendMode:
+          $ref: '#/components/schemas/SendMode'
+        scheduledAt:
+          $ref: '#/components/schemas/ScheduledAt'
+        message:
+          $ref: '#/components/schemas/CampaignMessage'
+    AudienceEstimateRequest:
+      type: object
+      description: Input used to calculate expected recipient count.
+      required:
+        - audienceSegment
+        - channel
+      example:
+        audienceSegment: dormant-users
+        channel: SMS
+      properties:
+        audienceSegment:
+          $ref: '#/components/schemas/AudienceSegmentId'
+        channel:
+          $ref: '#/components/schemas/CampaignChannel'
+    AudienceEstimateResponse:
+      type: object
+      description: Audience estimate returned for a selected segment and channel.
+      required:
+        - audienceSegment
+        - channel
+        - estimatedAudience
+        - allowedChannels
+      example:
+        audienceSegment: dormant-users
+        channel: SMS
+        estimatedAudience: 1240
+        allowedChannels:
+          - Email
+          - SMS
+      properties:
+        audienceSegment:
+          $ref: '#/components/schemas/AudienceSegmentId'
+        channel:
+          $ref: '#/components/schemas/CampaignChannel'
+        estimatedAudience:
+          $ref: '#/components/schemas/AudienceCount'
+        allowedChannels:
+          $ref: '#/components/schemas/CampaignChannelArray'
+    CampaignChannelArray:
+      type: array
+      description: Channels allowed for an audience segment.
+      minItems: 1
+      maxItems: 3
+      example:
+        - Email
+        - SMS
+      items:
+        $ref: '#/components/schemas/CampaignChannel'
+    ResetControlsRequest:
+      type: object
+      description: Optional test-control toggles used to reset seeded data with different failure modes.
+      example:
+        audienceEstimateBug: true
+        pastScheduleBug: true
+        launchFailures:
+          cmp-1001: provider_timeout
+      properties:
+        audienceEstimateBug:
+          $ref: '#/components/schemas/BooleanFlag'
+        pastScheduleBug:
+          $ref: '#/components/schemas/BooleanFlag'
+        launchFailures:
+          $ref: '#/components/schemas/LaunchFailureMap'
+    ResetResponse:
+      type: object
+      description: Data returned after resetting seeded campaigns.
+      required:
+        - campaigns
+        - summary
+        - options
+      example:
+        campaigns:
+          - id: cmp-1001
+            name: Dormant Buyer SMS Winback
+            channel: SMS
+            audienceSegment: dormant-users
+            status: Draft
+            sendMode: now
+            scheduledAt: ''
+            message: We saved a limited-time offer for you.
+            estimatedAudience: 1240
+            delivery:
+              accepted: 0
+              delivered: 0
+              failed: 0
+            createdAt: '2026-06-01T09:30:00Z'
+        summary:
+          total: 3
+          draft: 1
+          scheduled: 1
+          queued: 0
+          sent: 1
+          failed: 0
+        options:
+          audienceEstimateBug: true
+          pastScheduleBug: true
+          launchFailures: {}
+      properties:
+        campaigns:
+          $ref: '#/components/schemas/CampaignArray'
+        summary:
+          $ref: '#/components/schemas/CampaignSummary'
+        options:
+          $ref: '#/components/schemas/ResetControlsRequest'
+    LaunchFailureMap:
+      type: object
+      description: Map of campaign IDs to forced provider failure labels.
+      additionalProperties:
+        $ref: '#/components/schemas/FailureReason'
+      example:
+        cmp-1001: provider_timeout
+    FailureReason:
+      type: string
+      description: Short test-control label explaining why launch should fail.
+      minLength: 3
+      maxLength: 64
+      pattern: '^[a-z0-9_]+$'
+      example: provider_timeout
+    HealthResponse:
+      type: object
+      description: Minimal service health payload.
+      required:
+        - status
+        - service
+      example:
+        status: ok
+        service: campaign-management
+      properties:
+        status:
+          type: string
+          description: Service health state.
+          enum:
+            - ok
+          example: ok
+        service:
+          type: string
+          description: Stable service name.
+          minLength: 3
+          maxLength: 64
+          pattern: '^[a-z0-9-]+$'
+          example: campaign-management
+    Limit:
+      type: integer
+      description: Maximum number of collection records to return.
+      minimum: 1
+      maximum: 100
+      example: 20
+    Offset:
+      type: integer
+      description: Number of matching collection records to skip.
+      minimum: 0
+      maximum: 1000000
+      example: 0
+    SearchText:
+      type: string
+      description: Campaign name search term.
+      minLength: 0
+      maxLength: 80
+      pattern: '^[A-Za-z0-9 ._-]*$'
+      example: winback
+    BooleanFlag:
+      type: boolean
+      description: Boolean switch used by test controls.
+      example: true
+    ErrorResponse:
+      type: object
+      description: Standard API error envelope for all non-2xx responses.
+      required:
+        - code
+        - message
+        - traceId
+        - timestamp
+      example:
+        code: CMP-4001
+        message: Campaign request failed validation.
+        details:
+          - field: name
+            issue: must be between 3 and 80 characters
+        traceId: trace-a1b2c3d4
+        timestamp: '2026-06-13T09:30:00Z'
+      properties:
+        code:
+          type: string
+          description: Stable error code for programmatic handling.
+          pattern: '^[A-Z]{3,10}-[0-9]{3,5}$'
+          example: CMP-4001
+        message:
+          type: string
+          description: Human-readable error summary.
+          minLength: 1
+          maxLength: 256
+          example: Campaign request failed validation.
+        details:
+          type: array
+          description: Optional field-level error details.
+          minItems: 0
+          maxItems: 20
+          example:
+            - field: name
+              issue: must be between 3 and 80 characters
+          items:
+            $ref: '#/components/schemas/ErrorDetail'
+        traceId:
+          type: string
+          description: Correlation ID for logs and tracing.
+          pattern: '^[A-Za-z0-9-]{8,64}$'
+          example: trace-a1b2c3d4
+        timestamp:
+          type: string
+          description: Error time in ISO 8601 format.
+          format: date-time
+          example: '2026-06-13T09:30:00Z'
+    ErrorDetail:
+      type: object
+      description: Fine-grained validation error details.
+      required:
+        - field
+        - issue
+      example:
+        field: name
+        issue: must be between 3 and 80 characters
+      properties:
+        field:
+          type: string
+          description: Field or parameter name that failed validation.
+          minLength: 1
+          maxLength: 64
+          pattern: '^[A-Za-z0-9_.-]+$'
+          example: name
+        issue:
+          type: string
+          description: Short description of the validation issue.
+          minLength: 1
+          maxLength: 128
+          example: must be between 3 and 80 characters
