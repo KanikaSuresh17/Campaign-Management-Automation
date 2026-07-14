@@ -75,7 +75,7 @@ campaign-management-automation/
 
 ## Defects & Observations
 
-| # | Type | Description | Expected | Actual |
+| Sno | Type | Description | Expected | Actual |
 |---|------|-------------|----------|--------|
 | 1 | **Defect** | `POST /api/campaigns` with `sendMode: scheduled` and a past `scheduledAt` date | 400 validation error (business rule: "Scheduled campaigns must have a valid future date and time") | 201 Created — campaign accepted with a past schedule date |
 | 2 | **Doc/behavior mismatch** | OpenAPI spec's own example for `dormant-users` + `SMS` shows `estimatedAudience: 1240` | Estimate matches documented example | Live API returns `1165` for the same segment/channel combination |
